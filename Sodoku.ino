@@ -43,7 +43,7 @@ int cursorX = 0, cursorY = 0;
 byte flashTimer = 30;
 byte currentNumber = 5;
 bool gridFilled = false;
-byte level = 2; //How many numbers are revealed
+byte level = 1; //How many numbers are revealed
 
 void setup() {
   arduboy.begin();
@@ -60,7 +60,7 @@ void loop() {
   flashIt();
   checkForWin();
   checkForDuplicates();
-  checkGridForCurrentNumber();
+  checkGridForCurrentNumber(currentNumber);
   displayStuff();
 }
 
@@ -150,9 +150,13 @@ void moveCursorAndPlaceNumber() {
   if (arduboy.justPressed(A_BUTTON)) {
     if (grid[cursorX][cursorY] == currentNumber) grid[cursorX][cursorY] = 0;
     else grid[cursorX][cursorY] = currentNumber;
+    strcpy(message, "");
   }
   //Change to "choose number" mode?
-  if (arduboy.justPressed(B_BUTTON)) mode++;
+  if (arduboy.justPressed(B_BUTTON)) {
+    mode++;
+    strcpy(message, "");
+  }
   if (mode > 3) mode = 1;
   //reset game
   if (arduboy.justPressed(A_BUTTON) && arduboy.justPressed(B_BUTTON)) mode = 0;
@@ -172,22 +176,25 @@ void displayStuff() {
   arduboy.clear();
   arduboy.setCursor(72, 0);
   arduboy.print("-=Sodoku=-");
-  arduboy.setCursor(74, 15);
+  arduboy.setCursor(74, 10);
   arduboy.print(message);
-  arduboy.setCursor(74, 30);
+  arduboy.setCursor(75, 21);
   switch (mode) {
     case 0:
       // New Game
       arduboy.print("Level?");
-      arduboy.setCursor(74, 50);
+      arduboy.setTextSize(2);
+      arduboy.setCursor(83, 45);
       arduboy.print(level);
+      arduboy.setTextSize(1);
       break;
     case 1:
       // choose current number/flash it?
       arduboy.print("Number?");
       showCurrentNumber();
-      showGridWithNumberFlashing();
+      showGrid();
       showcurrentNumberInBlockGrid();
+      showCompletedNumbers();
       break;
     case 2:
       // position cursor and/or place new value into grid
@@ -195,6 +202,7 @@ void displayStuff() {
       showCurrentNumber();
       showGridWithCursorFlashing();
       showcurrentNumberInBlockGrid();
+      showCurrentCursorBlock();
       break;
     case 3:
       // position cursor and/or place new value into grid
@@ -210,9 +218,24 @@ void displayStuff() {
   arduboy.display();
 }
 
+void showCompletedNumbers() {
+  for (byte n = 0; n < 9; n++) {
+    byte count = 0;
+    checkGridForCurrentNumber(n + 1);
+    for (byte x = 0; x < 3; x++) {
+      for (byte y = 0; y < 3; y++) {
+        if (currentNumberInBlockGrid[x][y] == 1) count++;
+      }
+    }
+    font4x6.setCursor(80 + n * 5, 56);
+    if (count == 9) font4x6.print(n + 1);
+    else font4x6.print(".");
+  }
+}
+
 void showCurrentNumber() {
   arduboy.setTextSize(2);
-  arduboy.setCursor(80, 42);
+  arduboy.setCursor(81, 35);
   arduboy.print(currentNumber);
   arduboy.setTextSize(1);
 }
@@ -221,8 +244,8 @@ void showcurrentNumberInBlockGrid() {
   for (byte x = 0; x < 3; x++) {
     for (byte y = 0; y < 3; y++) {
       if (currentNumberInBlockGrid[x][y] == 1) {
-        font4x6.setCursor(100 + x * 6, 40 + y * 6);
-        font4x6.print("o");
+        font4x6.setCursor(100 + x * 7, 30 + y * 8);
+        font4x6.print(currentNumber);
       }
     }
   }
@@ -232,36 +255,39 @@ void showcurrentNumberInBlockGrid() {
 void showCurrentCursorBlock() {
   byte bx = cursorX / 3;
   byte by = cursorY / 3;
-  arduboy.fillCircle(101 + bx * 6, 44 + by * 6, 1);
+  if ( flashTimer < 15) arduboy.drawRect(98 + bx * 7, 30 + by * 8, 8, 8);
 }
 
-void showGridWithNumberFlashing() {
+void whiteSquares() {
+  arduboy.fillRect(0, 21, 24, 21);
+  arduboy.fillRect(24, 0, 24, 21);
+  arduboy.fillRect(24, 42, 24, 21);
+  arduboy.fillRect(48, 21, 24, 21);
+}
+
+void showGrid() {
+  whiteSquares();
   for (byte x = 0; x < 9; x++) {
     for (byte y = 0; y < 9; y++) {
-      if (grid[x][y] == currentNumber) {
-        if ( flashTimer < 15) {
-          font4x6.setCursor(x * 8, y * 7);
-          printGridCell(grid[x][y]);
-        }
-      } else {
-        font4x6.setCursor(x * 8, y * 7);
-        printGridCell(grid[x][y]);
-      }
+      if (altBlock(x, y)) font4x6.setTextColor(BLACK);
+      else font4x6.setTextColor(WHITE);
+      font4x6.setCursor(x * 8 + 2, y * 7);
+      printGridCell(grid[x][y], x, y);
     }
   }
 }
 
 void showGridWithCursorFlashing() {
+  whiteSquares();
   for (byte x = 0; x < 9; x++) {
     for (byte y = 0; y < 9; y++) {
+      if (altBlock(x, y)) font4x6.setTextColor(BLACK);
+      else font4x6.setTextColor(WHITE);
+      font4x6.setCursor(x * 8 + 2, y * 7);
+      printGridCell(grid[x][y], x, y);
       if (cursorX == x && cursorY == y) {
-        if ( flashTimer < 15) {
-          font4x6.setCursor(x * 8, y * 7);
-          printGridCell(grid[x][y]);
-        }
-      } else {
-        font4x6.setCursor(x * 8, y * 7);
-        printGridCell(grid[x][y]);
+        if ( flashTimer < 15) arduboy.drawRect(x * 8, y * 7, 8, 8, WHITE);
+        else arduboy.drawRect(x * 8, y * 7, 8, 8, BLACK);
       }
     }
   }
@@ -272,14 +298,12 @@ void showZoomGridWithCursor() {
   byte by = cursorY / 3;
   for (byte x = 0; x < 3; x++) {
     for (byte y = 0; y < 3; y++) {
+      arduboy.setCursor(15 + x * 16, 12 + y * 14);
+      printZoomGridCell(grid[bx * 3 + x][by * 3 + y]);
       if ( cursorX == bx * 3 + x && cursorY == by * 3 + y) {
         if ( flashTimer < 15) {
-          arduboy.setCursor(15 + x * 16, 10 + y * 14);
-          printZoomGridCell(grid[bx * 3 + x][by * 3 + y]);
+          arduboy.drawRect(13 + x * 16, 10 + y * 14, 10, 11);
         }
-      } else {
-        arduboy.setCursor(15 + x * 16, 10 + y * 14);
-        printZoomGridCell(grid[bx * 3 + x][by * 3 + y]);
       }
     }
   }
@@ -297,20 +321,22 @@ void showZoomGridWithCursor() {
   for (byte y = 0; y < 3; y++) {
     for (byte x = 0; x < 9; x++) {
       if (grid[x][by * 3 + y] == currentNumber) {
-        arduboy.setCursor(0, 10 + y * 14);
+        arduboy.setCursor(0, 12 + y * 14);
         arduboy.print(currentNumber);
       }
     }
   }
+  arduboy.drawLine(0, 8, 58, 8);
+  arduboy.drawLine(9, 0, 9,48);
   //which block is the cursor in
-  arduboy.setCursor(0, 55);
+  arduboy.setCursor(0, 56);
   arduboy.print("Block ");
   arduboy.print(bx + 1);
   arduboy.print(":");
   arduboy.print(by + 1);
 }
 
-void printGridCell(byte num) {
+void printGridCell(byte num, byte x, byte y) {
   if (num == 0) font4x6.print(".");
   else font4x6.print(num);
 }
@@ -320,13 +346,23 @@ void printZoomGridCell(byte num) {
   else arduboy.print(num);
 }
 
-void checkGridForCurrentNumber() {
+bool altBlock(byte x, byte y) {
+  byte bx = x / 3;
+  byte by = y / 3;
+  if (bx == 0 && by == 1) return true;
+  if (bx == 1 && (by == 0 || by == 2)) return true;
+  if (bx == 2 && by == 1) return true;
+  return false;
+}
+
+
+void checkGridForCurrentNumber(byte num) {
   for (byte bx = 0; bx < 3; bx++) {
     for (byte by = 0; by < 3; by++) {
       currentNumberInBlockGrid[bx][by] = 0;
       for (byte x = 0; x < 3; x++) {
         for (byte y = 0; y < 3; y++) {
-          if (grid[bx * 3 + x][by * 3 + y] == currentNumber) currentNumberInBlockGrid[bx][by] = 1;
+          if (grid[bx * 3 + x][by * 3 + y] == num) currentNumberInBlockGrid[bx][by] = 1;
         }
       }
     }
@@ -345,7 +381,7 @@ void makeGrid() {
 
 void shuffleNumbers() {
   //shuffles 2 columns or 2 rows. But they have to  be in the same block
-  for (byte i = 0 ; i < 20; i++) {
+  for (byte i = 0 ; i < 50; i++) {
     bool vertical = random(2); //Vertical or Horizontal
     byte randomNumb = random(3); //Choose random block (There are 9 blocks 3x3)
     if (vertical) shuffleColumns(randomNumb);
@@ -422,15 +458,7 @@ void checkForDuplicates() {
         for (byte y = 0; y < 3; y++) {
           if (grid[bx * 3 + x][by * 3 + y] != 0 && foundNumber[grid[bx * 3 + x][by * 3 + y] - 1]) {
             //duplicate so flag it
-            char tmp [5];
-            strcpy(message, "Du B: ");
-            itoa(bx + 1, tmp, 10);
-            strcat(message, tmp);
-            itoa(by + 1, tmp, 10);
-            strcat(message, tmp);
-            //number found to be a duplicate
-            itoa(grid[bx * 3 + x][by * 3 + y], tmp, 10);
-            strcat(message, tmp);
+            strcpy(message, "Error Blk");
             return;
           }
           //set found a number
@@ -448,10 +476,7 @@ void checkForDuplicates() {
     for (byte x = 0; x < 9; x++) {
       if (grid[x][y] != 0 && foundNumber[grid[x][y] - 1]) {
         //duplicate so flag it
-        char tmp [5];
-        strcpy(message, "Dup R: ");
-        itoa(y + 1, tmp, 10);
-        strcat(message, tmp);
+        strcpy(message, "Error Row");
         return;
       }
       //set found a number
@@ -467,10 +492,7 @@ void checkForDuplicates() {
     for (byte y = 0; y < 9; y++) {
       if (grid[x][y] != 0 && foundNumber[grid[x][y] - 1]) {
         //duplicate so flag it
-        char tmp [5];
-        strcpy(message, "Dupl C: ");
-        itoa(x + 1, tmp, 10);
-        strcat(message, tmp);
+        strcpy(message, "Error Col");
         return;
       }
       //set found a number
